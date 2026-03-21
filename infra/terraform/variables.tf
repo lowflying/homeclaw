@@ -7,13 +7,13 @@ variable "hcloud_token" {
 variable "server_location" {
   description = "Hetzner datacenter location identifier."
   type        = string
-  default     = "nbg1"
+  default     = "hel1"
 }
 
 variable "server_type" {
   description = "Hetzner server type (instance size)."
   type        = string
-  default     = "cx31"
+  default     = "cx32"
 }
 
 variable "extra_allowed_ips" {
