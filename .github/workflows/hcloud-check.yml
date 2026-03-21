@@ -24,12 +24,13 @@ jobs:
             exit 0
           fi
           echo "Found volume: $VOL"
-          SERVER=$(echo "$VOL" | awk '{print $4}')
-          if [ "$SERVER" != "-" ]; then
+          ID=$(echo "$VOL" | awk '{print $1}')
+          # Use hcloud describe to safely check attachment status
+          SERVER=$(hcloud volume describe "$ID" -o json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('server') or '-')")
+          if [ "$SERVER" != "-" ] && [ "$SERVER" != "None" ] && [ -n "$SERVER" ]; then
             echo "Volume is attached to server $SERVER — skipping deletion to avoid data loss."
             exit 1
           fi
-          ID=$(echo "$VOL" | awk '{print $1}')
           echo "Volume is unattached. Deleting volume $ID..."
           hcloud volume delete "$ID"
           echo "Deleted."
