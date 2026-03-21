@@ -19,7 +19,7 @@ jobs:
 
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.HOS_ACCESS_KEY }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.HOS_SECRET_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.HOST_SECRET_KEY }}
       TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
 
     steps:

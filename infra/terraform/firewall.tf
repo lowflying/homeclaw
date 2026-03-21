@@ -6,7 +6,7 @@ resource "hcloud_firewall" "homeclaw" {
     direction  = "in"
     protocol   = "tcp"
     port       = "2222"
-    source_ips = concat(["80.233.48.203/32"], var.extra_allowed_ips)
+    source_ips = concat(["109.78.131.133/32"], var.extra_allowed_ips)
   }
 
   # Inbound: ICMP (ping) from anywhere — IPv4 and IPv6

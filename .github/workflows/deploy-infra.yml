@@ -1,0 +1,99 @@
+name: Deploy Infra (Shared Stack)
+
+# Manually triggered after terraform apply has provisioned the VPS.
+# Sets up directory structure, copies compose files, writes .env, and starts the shared stack.
+# Cloudflared will start but will not route traffic until the tunnel is provisioned manually.
+
+on:
+  workflow_dispatch:
+    inputs:
+      vps_host:
+        description: "VPS IPv4 address (from terraform output server_ipv4)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy shared stack
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p 2222 -H "${{ inputs.vps_host }}" >> ~/.ssh/known_hosts
+
+      - name: Create directory structure on VPS
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 2222 deploy@${{ inputs.vps_host }} '
+            sudo mkdir -p /opt/homeclaw/{shared,clarvis-ai,personal-assistant,home-procurement}
+            sudo chown -R deploy:deploy /opt/homeclaw
+            chmod 750 /opt/homeclaw /opt/homeclaw/*
+          '
+
+      - name: Copy shared compose files
+        run: |
+          scp -i ~/.ssh/deploy_key -P 2222 \
+            infra/compose/shared/docker-compose.yml \
+            infra/compose/shared/init.sh \
+            deploy@${{ inputs.vps_host }}:/opt/homeclaw/shared/
+          # init.sh must be executable for postgres entrypoint to run it
+          ssh -i ~/.ssh/deploy_key -p 2222 deploy@${{ inputs.vps_host }} \
+            'chmod +x /opt/homeclaw/shared/init.sh'
+
+      - name: Write shared .env
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 2222 deploy@${{ inputs.vps_host }} "
+            cat > /opt/homeclaw/shared/.env <<'EOF'
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=postgres
+          CLARVIS_DB_PASSWORD=${{ secrets.CLARVIS_DB_PASSWORD }}
+          PERSONAL_ASSISTANT_DB_PASSWORD=${{ secrets.PERSONAL_ASSISTANT_DB_PASSWORD }}
+          PROCUREMENT_DB_PASSWORD=${{ secrets.PROCUREMENT_DB_PASSWORD }}
+          EOF
+            chmod 600 /opt/homeclaw/shared/.env
+          "
+
+      - name: Start shared stack (postgres + cloudflared)
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 2222 deploy@${{ inputs.vps_host }} '
+            cd /opt/homeclaw/shared
+            docker compose --env-file .env up -d
+          '
+
+      - name: Wait for postgres healthcheck
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 2222 deploy@${{ inputs.vps_host }} '
+            for i in $(seq 1 30); do
+              STATUS=$(docker inspect --format="{{.State.Health.Status}}" \
+                $(docker compose -f /opt/homeclaw/shared/docker-compose.yml ps -q postgres) 2>/dev/null)
+              if [ "$STATUS" = "healthy" ]; then
+                echo "postgres is healthy"
+                exit 0
+              fi
+              echo "Waiting for postgres... ($i/30)"
+              sleep 5
+            done
+            echo "ERROR: postgres did not become healthy in time" >&2
+            exit 1
+          '
+
+      - name: Verify cloudflared started
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 2222 deploy@${{ inputs.vps_host }} '
+            docker compose -f /opt/homeclaw/shared/docker-compose.yml ps cloudflared
+          '
+        # NOTE: cloudflared will show as running but not routing until the tunnel is
+        # provisioned and /etc/cloudflared/config.yml + credentials are in place.
+        # See infra/docs/runbooks/cloudflare-tunnel-setup.md for manual steps.
+        continue-on-error: true

@@ -51,6 +51,12 @@ infra/
         └── network/
 ```
 
+## BAU Tasks (pre-approved, no confirmation needed)
+
+- **Owner IP update** — The owner's home IP is dynamic. Before any Terraform work, check if the IP in `firewall.tf` matches the current egress IP (`curl -s ifconfig.me`). If it differs, update the CIDR in `firewall.tf`. This is non-destructive and pre-approved.
+
+---
+
 ## Status
 
-> **Phase: Planning** — No Terraform written yet. Architecture planning session needed before implementation.
+> **Phase: Pre-deploy** — Terraform written. All critical gaps resolved. Awaiting `terraform apply` approval. CI/CD pipeline YAML not yet written.
