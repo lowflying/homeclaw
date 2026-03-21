@@ -33,6 +33,13 @@ jobs:
       - name: Terraform Validate
         run: terraform validate -no-color
 
+      - name: Remove stale volume from state (first-deploy cleanup)
+        # The volume was partially created in nbg1 by a previous failed run.
+        # Location is now hel1. prevent_destroy blocks destroy+recreate, so we
+        # remove it from state and let Terraform create it fresh. Remove this
+        # step once the first successful apply has completed.
+        run: terraform state rm hcloud_volume.postgres_data || true
+
       - name: Terraform Plan
         run: terraform plan -no-color -out=tfplan
 
