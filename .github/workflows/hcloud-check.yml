@@ -14,33 +14,31 @@ jobs:
           curl -sSL https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz | tar -xz
           sudo mv hcloud /usr/local/bin/
 
-      - name: Check resource availability
+      - name: Delete orphaned postgres-data volume if unattached
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
         run: |
-          echo "=== Server Types ==="
-          hcloud server-type list
+          VOL=$(hcloud volume list -o noheader | grep postgres-data || true)
+          if [ -z "$VOL" ]; then
+            echo "No postgres-data volume found, nothing to do."
+            exit 0
+          fi
+          echo "Found volume: $VOL"
+          SERVER=$(echo "$VOL" | awk '{print $4}')
+          if [ "$SERVER" != "-" ]; then
+            echo "Volume is attached to server $SERVER — skipping deletion to avoid data loss."
+            exit 1
+          fi
+          ID=$(echo "$VOL" | awk '{print $1}')
+          echo "Volume is unattached. Deleting volume $ID..."
+          hcloud volume delete "$ID"
+          echo "Deleted."
 
-          echo ""
+      - name: Final resource state
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
           echo "=== Volumes ==="
           hcloud volume list
-
-          echo ""
           echo "=== Servers ==="
           hcloud server list
-
-          echo ""
-          echo "=== Floating IPs ==="
-          hcloud floating-ip list
-
-          echo ""
-          echo "=== SSH Keys ==="
-          hcloud ssh-key list
-
-          echo ""
-          echo "=== Firewalls ==="
-          hcloud firewall list
-
-          echo ""
-          echo "=== Networks ==="
-          hcloud network list
