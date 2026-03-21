@@ -13,7 +13,7 @@ variable "server_location" {
 variable "server_type" {
   description = "Hetzner server type (instance size)."
   type        = string
-  default     = "cx32"
+  default     = "cpx21"
 }
 
 variable "extra_allowed_ips" {
