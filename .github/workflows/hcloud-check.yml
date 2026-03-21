@@ -1,0 +1,46 @@
+name: HCloud Resource Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Check Hetzner resource availability
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install hcloud CLI
+        run: |
+          curl -sSL https://github.com/hetznercloud/cli/releases/latest/download/hcloud-linux-amd64.tar.gz | tar -xz
+          sudo mv hcloud /usr/local/bin/
+
+      - name: Check resource availability
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
+          echo "=== Server Types ==="
+          hcloud server-type list
+
+          echo ""
+          echo "=== Volumes ==="
+          hcloud volume list
+
+          echo ""
+          echo "=== Servers ==="
+          hcloud server list
+
+          echo ""
+          echo "=== Floating IPs ==="
+          hcloud floating-ip list
+
+          echo ""
+          echo "=== SSH Keys ==="
+          hcloud ssh-key list
+
+          echo ""
+          echo "=== Firewalls ==="
+          hcloud firewall list
+
+          echo ""
+          echo "=== Networks ==="
+          hcloud network list
