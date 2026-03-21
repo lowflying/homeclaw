@@ -5,18 +5,18 @@
 
 terraform {
   backend "s3" {
-    bucket = "homeclaw-infra-tfstate"
+    bucket = "homeclaw"
     key    = "base/terraform.tfstate"
-    region = "us-east-1" # dummy value — HOS does not use regions but the backend requires one
+    region = "eu-central" # matches Hetzner Object Storage region
 
     endpoints = {
-      s3 = "https://nbg1.your-objectstorage.com"
+      s3 = "https://hel1.your-objectstorage.com"
     }
 
     skip_credentials_validation  = true
     skip_metadata_api_check      = true
     skip_region_validation       = true
     skip_requesting_account_id   = true
-    force_path_style             = true
+    use_path_style               = true
   }
 }
