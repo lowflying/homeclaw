@@ -32,9 +32,10 @@ docker run --rm \
 echo "==> Download complete."
 
 # ── Step 2: Reimport Immich postgres ─────────────────────────────────────────
-DUMP_FILE="$RESTORE_DIR/backups/db/immich.sql"
-if [[ -f "$DUMP_FILE" ]]; then
-  echo "==> Reimporting Immich postgres database..."
+# Immich generates daily compressed dumps at immich-library/backups/immich-db-backup-*.sql.gz
+DUMP_FILE=$(find "$RESTORE_DIR/data/immich-library/backups" -name "immich-db-backup-*.sql.gz" -type f 2>/dev/null | sort | tail -1)
+if [[ -n "$DUMP_FILE" ]]; then
+  echo "==> Reimporting Immich postgres from: $(basename "$DUMP_FILE")"
   # Terminate active connections then drop+recreate DB
   docker exec \
     -e PGPASSWORD="$DB_PASSWORD" \
@@ -43,14 +44,14 @@ if [[ -f "$DUMP_FILE" ]]; then
     -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_DATABASE_NAME' AND pid <> pg_backend_pid();" \
     -c "DROP DATABASE IF EXISTS $DB_DATABASE_NAME;" \
     -c "CREATE DATABASE $DB_DATABASE_NAME;"
-  # Import dump
-  docker exec -i \
+  # Import compressed dump
+  gunzip -c "$DUMP_FILE" | docker exec -i \
     -e PGPASSWORD="$DB_PASSWORD" \
     dagda_immich_postgres \
-    psql -U "$DB_USERNAME" "$DB_DATABASE_NAME" < "$DUMP_FILE"
+    psql -U "$DB_USERNAME" "$DB_DATABASE_NAME"
   echo "==> Postgres reimport complete."
 else
-  echo "==> WARNING: No postgres dump found at $DUMP_FILE — skipping DB restore."
+  echo "==> WARNING: No Immich DB dump found in snapshot — skipping DB restore."
 fi
 
 # ── Step 3: Validate ─────────────────────────────────────────────────────────
