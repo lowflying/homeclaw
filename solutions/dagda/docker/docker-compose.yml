@@ -223,7 +223,7 @@ services:
     healthcheck:
       test: >-
         pg_isready --dbname="$${POSTGRES_DB}" --username="$${POSTGRES_USER}" || exit 1;
-        Chksum="$$(psql --dbname="$${POSTGRES_DB}" --username="$${POSTGRES_USER}" --tuples-only --no-align
+        Chksum="$$(PGPASSWORD="$${POSTGRES_PASSWORD}" psql --dbname="$${POSTGRES_DB}" --username="$${POSTGRES_USER}" --tuples-only --no-align
         --command='SELECT COALESCE(SUM(checksum_failures), 0) FROM pg_stat_database')";
         echo "checksum failure count - $${Chksum}";
         [ "$${Chksum}" = '0' ] || exit 1
@@ -257,7 +257,7 @@ services:
       AWS_ACCESS_KEY_ID: ${RESTIC_S3_KEY}
       AWS_SECRET_ACCESS_KEY: ${RESTIC_S3_SECRET}
       BACKUP_CRON: "0 2 * * *"
-      RESTIC_BACKUP_SOURCES: /data/immich-library /data/service-configs /backups/db
+      RESTIC_BACKUP_SOURCES: /data/immich-library /data/service-configs
       RESTIC_BACKUP_ARGS: ""
       RESTIC_FORGET_ARGS: "--keep-daily 30 --prune"
       RUN_BEFORE_BACKUP: /hooks/pre-backup.sh
@@ -265,9 +265,6 @@ services:
       - ${IMMICH_UPLOAD_LOCATION}:/data/immich-library:ro
       - ${CONFIG_ROOT}:/data/service-configs:ro
       - ./hooks:/hooks:ro
-      - restic-backups:/backups
-      # Docker socket: required by pre-backup hook to run pg_dump via docker exec
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       immich-postgres:
         condition: service_healthy
@@ -276,7 +273,6 @@ services:
 
 volumes:
   immich-model-cache:
-  restic-backups:
 
 networks:
   dagda:

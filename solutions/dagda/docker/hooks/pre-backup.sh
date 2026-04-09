@@ -1,28 +1,33 @@
 #!/bin/sh
 # Pre-backup hook — runs inside restic container before each backup.
-# Dumps Immich postgres to /backups/db/immich.sql via docker exec (Docker socket required).
+#
+# Postgres is covered by Immich's built-in daily backup, which writes
+# compressed SQL dumps to /data/immich-library/backups/ — these are
+# picked up by restic as part of the immich-library backup source.
+#
+# This hook verifies the most recent Immich DB dump exists and is recent
+# before proceeding, so the backup aborts rather than silently missing it.
 set -eu
 
-mkdir -p /backups/db
+IMMICH_BACKUP_DIR=/data/immich-library/backups
 
-DUMP_FILE=/backups/db/immich.sql
-DUMP_TMP=/backups/db/immich.sql.tmp
+echo "[pre-backup] Checking Immich DB backup..."
 
-echo "[pre-backup] Dumping Immich postgres (dagda_immich_postgres)..."
-docker exec \
-  -e PGPASSWORD="${DB_PASSWORD}" \
-  dagda_immich_postgres \
-  pg_dump --clean --if-exists -U "${DB_USERNAME}" "${DB_DATABASE_NAME}" > "${DUMP_TMP}"
+# Find the most recent dump file
+LATEST_DUMP=$(find "${IMMICH_BACKUP_DIR}" -name "immich-db-backup-*.sql.gz" -type f 2>/dev/null | sort | tail -1)
 
-# Sanity check: dump must be at least 10KB
-DUMP_BYTES=$(wc -c < "${DUMP_TMP}")
-if [ "${DUMP_BYTES}" -lt 10240 ]; then
-  echo "[pre-backup] ERROR: dump is suspiciously small (${DUMP_BYTES} bytes) — aborting"
-  rm -f "${DUMP_TMP}"
+if [ -z "${LATEST_DUMP}" ]; then
+  echo "[pre-backup] ERROR: No Immich DB dump found in ${IMMICH_BACKUP_DIR}"
+  echo "[pre-backup] Check Immich Settings → Backup to ensure scheduled backups are enabled."
   exit 1
 fi
 
-mv "${DUMP_TMP}" "${DUMP_FILE}"
+# Check dump is not older than 48 hours (2 days — allows for missed runs)
+DUMP_AGE_HOURS=$(( ( $(date +%s) - $(date -r "${LATEST_DUMP}" +%s) ) / 3600 ))
+if [ "${DUMP_AGE_HOURS}" -gt 48 ]; then
+  echo "[pre-backup] WARNING: Most recent Immich DB dump is ${DUMP_AGE_HOURS}h old: ${LATEST_DUMP}"
+  echo "[pre-backup] Proceeding, but check Immich backup settings."
+fi
 
-DUMP_SIZE=$(du -sh "${DUMP_FILE}" | cut -f1)
-echo "[pre-backup] pg_dump complete — ${DUMP_SIZE}"
+DUMP_SIZE=$(du -sh "${LATEST_DUMP}" | cut -f1)
+echo "[pre-backup] DB dump OK: $(basename "${LATEST_DUMP}") (${DUMP_SIZE}, ${DUMP_AGE_HOURS}h old)"
