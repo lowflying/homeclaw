@@ -249,18 +249,16 @@ services:
   # Repo: s3:https://hel1.your-objectstorage.com/dagda-backup
   restic:
     image: mazzolino/restic:latest
-    container_name: dagda-restic
+    container_name: dagda_restic
     hostname: dagda
     restart: unless-stopped
     env_file: .env
     environment:
-      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}
-      RESTIC_PASSWORD: ${RESTIC_PASSWORD}
       AWS_ACCESS_KEY_ID: ${RESTIC_S3_KEY}
       AWS_SECRET_ACCESS_KEY: ${RESTIC_S3_SECRET}
       BACKUP_CRON: "0 2 * * *"
       RESTIC_BACKUP_SOURCES: /data/immich-library /data/service-configs /backups/db
-      RESTIC_BACKUP_ARGS: "--verbose"
+      RESTIC_BACKUP_ARGS: ""
       RESTIC_FORGET_ARGS: "--keep-daily 30 --prune"
       RUN_BEFORE_BACKUP: /hooks/pre-backup.sh
     volumes:
@@ -268,9 +266,11 @@ services:
       - ${CONFIG_ROOT}:/data/service-configs:ro
       - ./hooks:/hooks:ro
       - restic-backups:/backups
+      # Docker socket: required by pre-backup hook to run pg_dump via docker exec
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      - immich-postgres
+      immich-postgres:
+        condition: service_healthy
     networks:
       - dagda
 
